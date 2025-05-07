@@ -54,7 +54,7 @@ impl Plugin for HelloPlugin
         app.insert_resource(GreetTimer(Timer::from_seconds(2.0, TimerMode::Repeating)));
         app.add_systems(Startup, (setup, add_people, hello_world));
         app.add_systems(Update, (update_people, greet_people).chain());
-        app.add_systems(Update, (window_draw, player_movement, camera_movement, (cannon_change_power, cannon_action, apply_angular_vel, calculate_and_draw_cannon_arc).chain()));
+        app.add_systems(Update, (window_draw, player_movement, camera_movement, (cannon_change_power, cannon_action, apply_angular_vel, calculate_cannon_arc, draw_cannon_arc, fix_draw_cannon_arc).chain()));
     }
 }
 
@@ -114,17 +114,25 @@ struct CannonBundle
     power: Power,
 }
 
+#[derive(Bundle)]
+struct CannonAimSpotBundle
+{
+    cannon_aim_spot: CannonAimSpot,
+    sprite: Sprite,
+    transform: Transform,
+}
+
 #[derive(Component)]
 struct LinePath
 {
     points: Vec<Vec3>,
 }
 
+#[derive(Component)]
+struct LinePoint;
+
 #[derive(Component, Debug, Copy, Clone)]
 struct Power(f32);
-
-#[derive(Component)]
-struct Angle(f32);
 
 #[derive(Component)]
 struct AngularVelocity(f32);
@@ -159,12 +167,31 @@ fn setup(mut commands: Commands)
     let pos2 = Transform::from_translation([5.0, 5.0, 0.0].into());
     commands.spawn((Sprite::default(), pos2, Player, ReceivesInput {active: false}));
     commands.insert_resource(CannonPoller(Timer::from_seconds(1.0, TimerMode::Repeating)));
-    commands.spawn(CannonBundle::default());
-    commands.spawn((
-        Sprite::sized([3.0, 3.0].into()),
-        Transform::from_translation([0.0, 0.0, 0.0].into()),
-        CannonAimSpot,
-    ));
+    commands.spawn(CannonBundle::default())
+    .with_children(|cannon|
+    {
+        cannon.spawn(
+            CannonAimSpotBundle {
+                cannon_aim_spot: CannonAimSpot,
+                sprite: Sprite::sized([3.0, 3.0].into()),
+                transform: Transform::from_translation([0.0, 0.0, 0.0].into()),
+            },
+            // (LinePath { points: vec![] }, Transform::default()),
+        );
+        cannon.spawn((
+            LinePath { points: vec![] },
+            Transform::default(),
+            InheritedVisibility::default()
+        ));
+    });
+    // .with_child(LinePath { points: vec![] })
+    // .with_child(
+    //     CannonAimSpotBundle {
+    //         cannon_aim_spot: CannonAimSpot,
+    //         sprite: Sprite::sized([3.0, 3.0].into()),
+    //         transform: Transform::from_translation([0.0, 0.0, 0.0].into()),
+    //     }
+    // );
 }
 
 fn cannon_change_power(
@@ -179,10 +206,10 @@ fn cannon_change_power(
             for ev in mouse_wheel.read()
             {
                 power.0 += ev.y;
-                power.0 = power.0.clamp(40.0, 160.0);
+                power.0 = power.0.clamp(30.0, 90.0);
             }
 
-            println!("Cannon power: {:?}", power.0);
+            // println!("Cannon power: {:?}", power.0);
         }
     }
 }
@@ -201,39 +228,26 @@ struct LineSegment;
 #[derive(Component)]
 struct MiddlePoint;
 
-fn calculate_and_draw_cannon_arc(
-    mut commands: Commands,
-    query: Single<(&Transform, &Power), With<Cannon>>,
-    aim_spot: Single<&mut Transform, (With<CannonAimSpot>, Without<Cannon>)>,
+#[derive(Component)]
+#[require(Transform, Sprite)]
+struct LinePathPoint;
+
+fn calculate_cannon_arc(
+    // mut commands: Commands,
+    cannon_query: Single<(&Children, &Power), With<Cannon>>,
+    mut line_path: Query<&mut LinePath>,
+    mut aim_spot: Query<&mut Transform, With<CannonAimSpot>>,
 )
 {
-    // let a = commands.entity(aim_spot);
-    // let aim_spot = aim_spot.iter().next();
-    // if let Some(aim_spot) = aim_spot
-    // {
-    //     // commands.entity(aim_spot).despawn();
-    // }
+    // println!("Calculating cannon arc...");
 
     const VERT_ANGLE: f32 = 35.0_f32.to_radians();
 
-    let (transform, &Power(p)) = query.into_inner();
-
-    // let angle = transform.rotation.angle_between(Quat::from_rotation_z(0.0));
-
-    // let facing_vec = transform.forward();
-    let pos = transform.translation;
-
-    let facing_vec: Vec2 = [1.0, 0.0].into();
+    let (ch, &Power(p)) = cannon_query.into_inner();
 
     let dx = p * p * VERT_ANGLE.cos() * VERT_ANGLE.sin() / 4.9;
-
-    for i in 0..100
-    {
-        let t = i as f32 / 100.0 * p * VERT_ANGLE.sin() / 4.9;
-        let z = -4.9 * t * t + p * VERT_ANGLE.sin() * t;
-    }
     
-    let n_points: i32 = 100;
+    let n_points: i32 = 50;
     let points = 
     (0..n_points).into_iter()
     .map( |i| i as f32 / n_points as f32)
@@ -248,87 +262,233 @@ fn calculate_and_draw_cannon_arc(
     })
     .collect::<Vec<Vec3>>();
 
-    const ANGLE_UP: f32 = 60.0;
-    const ANGLE_UP_RAD: f32 = ANGLE_UP.to_radians();
-    const ANGLE_UP_COMP_RAD: f32 = (90.0 - ANGLE_UP).to_radians();
-
-    let transformed_points = 
-    points.clone().into_iter()
-    .map(
-    |mut v|
+    // Gather children, provided they are found
+    let mut lp = None;
+    let mut aim_spot_transform = None;
+    for &child in ch
     {
-        let dy = v.z * ANGLE_UP_COMP_RAD.sin() / ANGLE_UP_RAD.sin();
-        v.y += dy;
-
-        v
-    });
-
-    for pt in transformed_points
-    {
-        let mut sprite = Sprite::sized([3.0, 3.0].into());
-        let color = Color::Srgba(Srgba::RED);
-        sprite.color = color;
-        let transform = Transform::from_translation(pt);
-
-        commands.spawn((
-            sprite, transform, MiddlePoint
-        ));
-    }
-
-
-
-
-
-
-    let line_segments = 
-    points.windows(2)
-    .filter_map(
-    |window| -> Option<LineSegmentBundle>
-    {
-        let [a, b] = window else { return None };
-
-        let mid = a.midpoint(*b);
-        let d = a.distance(*b);
-
-        let mut sprite = Sprite::sized([d, 1.0].into());
-        sprite.color = Color::Srgba(Srgba::RED);
-        // sprite.anchor = bevy::sprite::Anchor::CenterLeft;
-
-        let mut transform = Transform::default();
-        transform.translation = mid;
-        transform.look_at(Vec3::Z, Vec3::Z);
-
-        let ls = LineSegmentBundle
+        if lp.is_none()
         {
-            line_segment: LineSegment,
-            sprite,
-            transform,
-        };
-
-        Some(ls)
-    })
-    .collect::<Vec<_>>();
-
-
-
-    for ls in line_segments.into_iter()
-    {
-        // commands.spawn(ls);
+            lp = line_path.get_mut(child).ok();
+        }
+        if aim_spot_transform.is_none()
+        {
+            aim_spot_transform = aim_spot.get_mut(child).ok();
+        }
+        // aim_spot_transform = aim_spot.get_mut(child).ok();
     }
     
+    if let Some(mut lp) = lp
+    {
+        lp.points = points;
+
+        // const ANGLE_UP: f32 = 60.0;
+        // const ANGLE_UP_RAD: f32 = ANGLE_UP.to_radians();
+        // const ANGLE_UP_COMP_RAD: f32 = (90.0 - ANGLE_UP).to_radians();
+    
+        // let transformed_points = 
+        // lp.points.clone().into_iter()
+        // .map(
+        // |mut v|
+        // {
+        //     let dy = v.z * ANGLE_UP_COMP_RAD.sin() / ANGLE_UP_RAD.sin();
+        //     v.y += dy;
+    
+        //     v
+        // });
+    
+        // for pt in transformed_points
+        // {
+        //     let mut sprite = Sprite::sized([3.0, 3.0].into());
+        //     let color = Color::Srgba(Srgba::RED);
+        //     sprite.color = color;
+        //     let transform = Transform::from_translation(pt);
+    
+        //     commands.spawn((
+        //         sprite, transform, MiddlePoint
+        //     ));
+        // }
+    }
+
+    if let Some(mut aim_spot_transform) = aim_spot_transform
+    {
+        // println!("aim_spot_transform: {:?}", aim_spot_transform);
+
+        aim_spot_transform.translation = Vec3::new(dx, 0.0, 0.0);
+    }
 
 
-    // {
+    // aim_spot.transform.translation = Vec3::new(dx, 0.0, 0.0);
+    
 
-    // }
-
-    let mut aim_spot_t = aim_spot.into_inner();
-    aim_spot_t.translation = pos + Vec3::new(dx, 0.0, 0.0);
+    // let mut aim_spot_t = aim_spot.into_inner();
+    // aim_spot_t.translation = Vec3::new(dx, 0.0, 0.0);
     // commands.spawn((
     //     Sprite::sized([3.0, 3.0].into()),
     //     Transform::from_translation(pos + Vec3::new(dx, 0.0, 0.0)),
     //     CannonAimSpot,
     // ));
+}
+
+fn draw_cannon_arc(
+    mut commands: Commands,
+    line_path: Query<(Entity, Option<&Children>, &LinePath)>,
+)
+{
+    // println!("line_path: {:?}", line_path);
+
+    // println!("Drawing cannon arc...");
+
+    // commands.entity(entity).
+
+    for (entity, children, lp) in line_path
+    {
+        if let Some(children) = children
+        {
+            for &child in children
+            {
+                commands.entity(child).despawn();
+            }
+        }
+
+        else
+        {
+            for pt in &lp.points
+            {
+                const ANGLE_UP: f32 = 60.0;
+                const ANGLE_UP_RAD: f32 = ANGLE_UP.to_radians();
+                const ANGLE_UP_COMP_RAD: f32 = (90.0 - ANGLE_UP).to_radians();
+             
+                // let transformed_points = 
+                // lp.points.clone().into_iter()
+                // .map(
+                // |mut v|
+                // {
+                //     let dy = v.z * ANGLE_UP_COMP_RAD.sin() / ANGLE_UP_RAD.sin();
+                //     v.y += dy;
+            
+                //     v
+                // });
+
+                let transformed_point = {
+                    let dy = pt.z * ANGLE_UP_COMP_RAD.sin() / ANGLE_UP_RAD.sin();
+                    Vec3::new(pt.x, pt.y + dy, pt.z)
+                };
+
+                let mut sprite = Sprite::sized([3.0, 3.0].into());
+                let color = Color::Srgba(Srgba::RED);
+                sprite.color = color;
+                let transform = Transform::from_translation(transformed_point);
+
+
+                commands.entity(entity).with_child((
+                    sprite, transform, LinePathPoint
+                ));
+            }
+
+            // const ANGLE_UP: f32 = 60.0;
+            // const ANGLE_UP_RAD: f32 = ANGLE_UP.to_radians();
+            // const ANGLE_UP_COMP_RAD: f32 = (90.0 - ANGLE_UP).to_radians();
+        
+            // let transformed_points = 
+            // lp.points.clone().into_iter()
+            // .map(
+            // |mut v|
+            // {
+            //     let dy = v.z * ANGLE_UP_COMP_RAD.sin() / ANGLE_UP_RAD.sin();
+            //     v.y += dy;
+        
+            //     v
+            // });
+        
+            // for pt in transformed_points
+            // {
+            //     let mut sprite = Sprite::sized([3.0, 3.0].into());
+            //     let color = Color::Srgba(Srgba::RED);
+            //     sprite.color = color;
+            //     let transform = Transform::from_translation(pt);
+        
+            //     commands.spawn((
+            //         sprite, transform, MiddlePoint
+            //     ));
+            // }
+        }
+
+
+        // println!("Line path: {:?}", lp.points);
+
+        // // clear all children of this line_path
+        // for &child in children
+        // {
+        //     commands.entity(child).despawn();
+        // }
+
+        // // spawn new children of this line_path, with type LinePathPoint
+        // for pt in &lp.points
+        // {
+        //     let mut sprite = Sprite::sized([3.0, 3.0].into());
+        //     let color = Color::Srgba(Srgba::RED);
+        //     sprite.color = color;
+        //     let transform = Transform::from_translation(*pt);
+            
+
+        //     let id = commands.spawn((
+        //         LinePathPoint, sprite, transform
+        //     )).id();
+
+        //     commands.entity(entity).add_child(id);
+        //     // commands.spawn((
+        //     //     sprite, transform, LinePathPoint
+        //     // ));
+        // }
+    }
+}
+
+fn fix_draw_cannon_arc(
+    query: Query<&mut GlobalTransform, With<LinePathPoint>>
+)
+{
+    println!("Fixing cannon arc...");
+
+    for mut transform in query
+    // for transform in query
+    {
+        const ANGLE_UP: f32 = 60.0;
+        const ANGLE_UP_RAD: f32 = ANGLE_UP.to_radians();
+        const ANGLE_UP_COMP_RAD: f32 = (90.0 - ANGLE_UP).to_radians();
+    
+        let mut point = transform.translation();
+
+        let dy = point.z * ANGLE_UP_COMP_RAD.sin() / ANGLE_UP_RAD.sin();
+        point.y += dy;
+
+        
+        *transform = GlobalTransform::from_translation(point);
+        // transform = transform.mul_transform(Transform::from_translation([0.0, dy, 0.0]));
+
+        // let transformed_points = 
+        // lp.points.clone().into_iter()
+        // .map(
+        // |mut v|
+        // {
+        //     let dy = v.z * ANGLE_UP_COMP_RAD.sin() / ANGLE_UP_RAD.sin();
+        //     v.y += dy;
+    
+        //     v
+        // });
+    
+        // for pt in transformed_points
+        // {
+        //     let mut sprite = Sprite::sized([3.0, 3.0].into());
+        //     let color = Color::Srgba(Srgba::RED);
+        //     sprite.color = color;
+        //     let transform = Transform::from_translation(pt);
+    
+        //     commands.spawn((
+        //         sprite, transform, MiddlePoint
+        //     ));
+        // }
+    }
 }
 
 fn cannon_action(
@@ -367,9 +527,14 @@ fn cannon_action(
 
         av.0 = av.0.clamp(-3.0, 3.0);
 
-        if !q && !e
+        if !q && !e && av.0 != 0.0
         {
             av.0 -= 0.1 * av.0.signum();
+        }
+
+        if av.0.abs() < 0.001
+        {
+            av.0 = 0.0;
         }
     }
 }
