@@ -1,4 +1,4 @@
-use bevy::{input::mouse::MouseWheel, prelude::*};
+use bevy::{input::mouse::MouseWheel, prelude::*, window::WindowResolution};
 use bevy_egui::{egui, EguiContexts, EguiPlugin, EguiContextPass};
 
 // use bevy::bevy_window::PrimaryWindow;
@@ -69,26 +69,9 @@ fn window_draw(
 {
     let Ok(mut window) = primary_window.single_mut() else { return; };
     let window = &mut *window;
-    
-    let pos = window.cursor_position();
 
-    // if let Some(pos) = pos
-    // {
-    //     println!("Cursor position: {:?}", pos);
-    // }
-    // else
-    // {
-    //     println!("Cursor position: None");
-    // }
-
+    window.resolution = WindowResolution::new(1024., 1024.);
     window.title = String::from("New Window Title");
-    // window.transparent = true;
-
-    // window.set_cursor_visible(false);
-    // window.set_cursor_grab_mode(CursorGrabMode::Confined);
-    // window.set_cursor_grab_mode(CursorGrabMode::Locked);
-    // window.set_cursor_position(Vec2::new(0.0, 0.0));
-    // cam.set_position(Vec3::new(0.0, 0.0, 0.0));
 }
 
 #[derive(Component)]
