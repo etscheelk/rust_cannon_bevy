@@ -1,5 +1,7 @@
-use bevy::{input::mouse::MouseWheel, prelude::*, window::WindowResolution};
+use bevy::{asset::RenderAssetUsages, input::mouse::MouseWheel, prelude::*, render::render_resource::{Extent3d, TextureFormat}, window::WindowResolution};
 use bevy_egui::{egui, EguiContexts, EguiPlugin, EguiContextPass};
+
+use RustFractal::fractal::{self, Fractalize};
 
 // use bevy::bevy_window::PrimaryWindow;
 
@@ -12,7 +14,8 @@ fn main() {
 
 fn ui_example_system(
     mut contexts: EguiContexts, 
-    query: Query<&Name, With<Person>>
+    query: Query<&Name, With<Person>>,
+    mut fractal_ew: EventWriter<FractalEvent>,
 )
 {
     egui::Window::new("Hello").show(
@@ -24,6 +27,11 @@ fn ui_example_system(
             {
                 println!("Button clicked!");
             }
+            if ui.button("Render Low").clicked()
+            {
+                println!("Render low!");
+                fractal_ew.write(FractalEvent::RenderLow);
+            }
             ui.label("World!");
             for name in &query
             {
@@ -31,6 +39,66 @@ fn ui_example_system(
             }
         }
     );
+}
+
+fn fractal_event(
+    // mut commands: Commands,
+    mut events: EventReader<FractalEvent>,
+    fractal_query: Single<&mut Fractal>,
+)
+{
+    let mut fractal_query = fractal_query.into_inner();
+    let params = fractal_query.params.clone();
+
+    for event in events.read()
+    {
+        match event
+        {
+            FractalEvent::RenderHigh => 
+            {
+                println!("Render high!");
+            },
+            FractalEvent::RenderLow => {
+                fractal_query.fractal.fractalize(params.clone());
+            },
+            FractalEvent::Settings(params) => 
+            {
+                println!("Settings: {:?}", params);
+                fractal_query.params = params.clone();
+            },
+        }
+    }
+}
+
+fn fractal_render(
+    mut commands: Commands,
+    fractal: Single<&Fractal>,
+)
+{
+    let fractal = fractal.into_inner();
+
+    let tf = TextureFormat::R8Unorm;
+
+    let img = Image::new(
+        Extent3d {
+            depth_or_array_layers: 1,
+            height: 1024,
+            width: 1024,
+        }, 
+        bevy::render::render_resource::TextureDimension::D1, 
+        fractal.fractal.grid.clone(), 
+        tf, 
+        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD
+    );
+
+    // let sp = Sprite::from_image(img);
+}
+
+#[derive(Component)]
+struct Fractal
+{
+    fractal: RustFractal::my_grid::MyGrid<u8>,
+    params: RustFractal::fractal::FractalizeParameters,
 }
 
 #[derive(Component)]
@@ -58,6 +126,8 @@ impl Plugin for HelloPlugin
         app.add_systems(Startup, (setup, add_people, hello_world));
         app.add_systems(Update, (update_people, greet_people).chain());
         app.add_systems(Update, (window_draw, player_movement, camera_movement, (cannon_change_power, cannon_action, apply_angular_vel, calculate_cannon_arc, draw_cannon_arc).chain()));
+        app.add_event::<FractalEvent>();
+        app.add_systems(Update, (fractal_event,));
     }
 }
 
@@ -145,6 +215,14 @@ impl Default for CannonBundle
     }
 }
 
+#[derive(Event)]
+enum FractalEvent
+{
+    RenderHigh,
+    RenderLow,
+    Settings(RustFractal::fractal::FractalizeParameters),
+}
+
 fn setup(mut commands: Commands)
 {
     commands.spawn((MyMainCamera, Camera2d::default(), Transform::default(), ReceivesInput {active: true} ));
@@ -169,6 +247,15 @@ fn setup(mut commands: Commands)
             Transform::default(),
             InheritedVisibility::default()
         ));
+    });
+
+    let fractal = RustFractal::my_grid::MyGrid::<u8>::new(1024, 1024);
+    let params = 
+        RustFractal::fractal::FractalizeParameters::default()
+        .with_max_points(5_000_000);
+    commands.spawn(Fractal {
+        fractal,
+        params,
     });
     // .with_child(LinePath { points: vec![] })
     // .with_child(
