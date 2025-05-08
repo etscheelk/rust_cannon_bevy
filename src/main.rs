@@ -10,7 +10,10 @@ fn main() {
     .run();
 }
 
-fn ui_example_system(mut contexts: EguiContexts, query: Query<&Name, With<Person>>)
+fn ui_example_system(
+    mut contexts: EguiContexts, 
+    query: Query<&Name, With<Person>>
+)
 {
     egui::Window::new("Hello").show(
         contexts.ctx_mut(), 
@@ -54,7 +57,7 @@ impl Plugin for HelloPlugin
         app.insert_resource(GreetTimer(Timer::from_seconds(2.0, TimerMode::Repeating)));
         app.add_systems(Startup, (setup, add_people, hello_world));
         app.add_systems(Update, (update_people, greet_people).chain());
-        app.add_systems(Update, (window_draw, player_movement, camera_movement, (cannon_change_power, cannon_action, apply_angular_vel, calculate_cannon_arc, draw_cannon_arc, fix_draw_cannon_arc).chain()));
+        app.add_systems(Update, (window_draw, player_movement, camera_movement, (cannon_change_power, cannon_action, apply_angular_vel, calculate_cannon_arc, draw_cannon_arc).chain()));
     }
 }
 
@@ -440,53 +443,6 @@ fn draw_cannon_arc(
         //     // commands.spawn((
         //     //     sprite, transform, LinePathPoint
         //     // ));
-        // }
-    }
-}
-
-fn fix_draw_cannon_arc(
-    query: Query<&mut GlobalTransform, With<LinePathPoint>>
-)
-{
-    println!("Fixing cannon arc...");
-
-    for mut transform in query
-    // for transform in query
-    {
-        const ANGLE_UP: f32 = 60.0;
-        const ANGLE_UP_RAD: f32 = ANGLE_UP.to_radians();
-        const ANGLE_UP_COMP_RAD: f32 = (90.0 - ANGLE_UP).to_radians();
-    
-        let mut point = transform.translation();
-
-        let dy = point.z * ANGLE_UP_COMP_RAD.sin() / ANGLE_UP_RAD.sin();
-        point.y += dy;
-
-        
-        *transform = GlobalTransform::from_translation(point);
-        // transform = transform.mul_transform(Transform::from_translation([0.0, dy, 0.0]));
-
-        // let transformed_points = 
-        // lp.points.clone().into_iter()
-        // .map(
-        // |mut v|
-        // {
-        //     let dy = v.z * ANGLE_UP_COMP_RAD.sin() / ANGLE_UP_RAD.sin();
-        //     v.y += dy;
-    
-        //     v
-        // });
-    
-        // for pt in transformed_points
-        // {
-        //     let mut sprite = Sprite::sized([3.0, 3.0].into());
-        //     let color = Color::Srgba(Srgba::RED);
-        //     sprite.color = color;
-        //     let transform = Transform::from_translation(pt);
-    
-        //     commands.spawn((
-        //         sprite, transform, MiddlePoint
-        //     ));
         // }
     }
 }
