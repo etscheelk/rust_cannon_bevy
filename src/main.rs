@@ -1,7 +1,7 @@
 use bevy::{asset::RenderAssetUsages, input::mouse::MouseWheel, prelude::*, render::render_resource::{Extent3d, TextureFormat}, sprite::Anchor, window::WindowResolution};
 use bevy_egui::{egui, EguiContexts, EguiPlugin, EguiContextPass};
 
-use RustFractal::fractal::{self, Fractalize};
+use RustFractal::fractal::{self, Fractalize, FractalizeParameters};
 
 // use bevy::bevy_window::PrimaryWindow;
 
@@ -22,6 +22,11 @@ fn ui_example_system(
         contexts.ctx_mut(), 
         |ui|
         {
+            let mut s_theta_offset = String::from("");
+            let mut s_rot = String::from("");
+
+            let mut params = FractalizeParameters::default();
+
             // ui.checkbox(checked, text)
             if ui.button("button").clicked()
             {
@@ -29,12 +34,30 @@ fn ui_example_system(
             }
             if ui.button("Render Low").clicked()
             {
-                println!("Render low!");
                 fractal_ew.write(FractalEvent::RenderLow);
             }
             if ui.button("Display").clicked()
             {
                 fractal_ew.write(FractalEvent::Display);
+            }
+            if ui.text_edit_singleline(&mut s_theta_offset).lost_focus()
+            {
+                if let Ok(theta_offset) = s_theta_offset.parse()
+                {
+                    params.theta_offset = theta_offset;
+                }
+            }
+            if ui.text_edit_singleline(&mut s_rot).lost_focus()
+            {
+                if let Ok(rot) = s_rot.parse()
+                {
+                    params.rot = rot;
+                }
+            }
+
+            if params != FractalizeParameters::default()
+            {
+                fractal_ew.write(FractalEvent::Settings(params));
             }
             // ui.label("World!");
             // for name in &query
@@ -49,7 +72,7 @@ fn fractal_event(
     mut commands: Commands,
     mut events: EventReader<FractalEvent>,
     fractal_query: Single<&mut Fractal>,
-    mut asset_server: Res<AssetServer>,
+    asset_server: Res<AssetServer>,
 )
 {
     let mut fractal_query = fractal_query.into_inner();
@@ -94,8 +117,6 @@ fn fractal_event(
 
                 let h = asset_server.add(img);
 
-                // asset_server.
-
                 let mut sprite = Sprite::from_image(h);
                 sprite.anchor = Anchor::Center;
                 let transform = Transform::from_translation([0.0, 0.0, -1.0].into());
@@ -104,33 +125,6 @@ fn fractal_event(
                     sprite,
                     transform,
                 ));
-
-
-                // for r in 0..1024
-                // {
-                //     for c in 0..1024
-                //     {
-                //         let val = fractal_query.fractal.flat_index(r, c);
-                //         #[derive(Component)]
-                //         struct Pixel;
-
-                //         let color = fractal_query.fractal.grid[val];
-                //         let color = Color::Srgba(Srgba::rgb_u8(color, color, color));
-
-                //         let sprite = Sprite::from_color(color, [1.0, 1.0].into());
-                //         let transform = Transform::from_translation([r as f32 - 512.0, c as f32 - 512.0, 0.0].into());
-
-                //         commands.spawn((
-                //             Pixel,
-                //             sprite,
-                //             transform
-                //         ));
-
-                //         // println!("val: {:?}", val);
-                //     }
-                // }
-                
-
             },
         }
     }
