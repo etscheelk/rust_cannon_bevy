@@ -1,4 +1,4 @@
-use bevy::{asset::RenderAssetUsages, input::mouse::MouseWheel, prelude::*, render::render_resource::{Extent3d, TextureFormat}, window::WindowResolution};
+use bevy::{asset::RenderAssetUsages, input::mouse::MouseWheel, prelude::*, render::render_resource::{Extent3d, TextureFormat}, sprite::Anchor, window::WindowResolution};
 use bevy_egui::{egui, EguiContexts, EguiPlugin, EguiContextPass};
 
 use RustFractal::fractal::{self, Fractalize};
@@ -49,6 +49,7 @@ fn fractal_event(
     mut commands: Commands,
     mut events: EventReader<FractalEvent>,
     fractal_query: Single<&mut Fractal>,
+    mut asset_server: Res<AssetServer>,
 )
 {
     let mut fractal_query = fractal_query.into_inner();
@@ -65,6 +66,7 @@ fn fractal_event(
             FractalEvent::RenderLow => {
                 println!("Render low!");
                 fractal_query.fractal.fractalize(params.clone());
+                fractal_query.fractal.pixels_mut().for_each(|p| p[3] = 0xff);
                 println!("Render low done!")
             },
             FractalEvent::Settings(params) => 
@@ -76,44 +78,57 @@ fn fractal_event(
             {
                 println!("Display!");
 
-                let tf = TextureFormat::R8Unorm;
+                let tf = TextureFormat::Rgba8Unorm;
 
-                // let img = Image::new(
-                //     Extent3d {
-                //         depth_or_array_layers: 1,
-                //         height: 1024,
-                //         width: 1024,
-                //     },
-                //     bevy::render::render_resource::TextureDimension::D2,
-                //     fractal_query.fractal.grid.clone(),
-                //     tf,
-                //     RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
-                // );
+                let img = Image::new(
+                    Extent3d {
+                        depth_or_array_layers: 1,
+                        height: 1024,
+                        width: 1024,
+                    },
+                    bevy::render::render_resource::TextureDimension::D2,
+                    fractal_query.fractal.clone().into_vec(),
+                    tf,
+                    RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+                );
+
+                let h = asset_server.add(img);
+
+                // asset_server.
+
+                let mut sprite = Sprite::from_image(h);
+                sprite.anchor = Anchor::Center;
+                let transform = Transform::from_translation([0.0, 0.0, -1.0].into());
+
+                commands.spawn((
+                    sprite,
+                    transform,
+                ));
 
 
-                for r in 0..1024
-                {
-                    for c in 0..1024
-                    {
-                        let val = fractal_query.fractal.flat_index(r, c);
-                        #[derive(Component)]
-                        struct Pixel;
+                // for r in 0..1024
+                // {
+                //     for c in 0..1024
+                //     {
+                //         let val = fractal_query.fractal.flat_index(r, c);
+                //         #[derive(Component)]
+                //         struct Pixel;
 
-                        let color = fractal_query.fractal.grid[val];
-                        let color = Color::Srgba(Srgba::rgb_u8(color, color, color));
+                //         let color = fractal_query.fractal.grid[val];
+                //         let color = Color::Srgba(Srgba::rgb_u8(color, color, color));
 
-                        let sprite = Sprite::from_color(color, [1.0, 1.0].into());
-                        let transform = Transform::from_translation([r as f32 - 512.0, c as f32 - 512.0, 0.0].into());
+                //         let sprite = Sprite::from_color(color, [1.0, 1.0].into());
+                //         let transform = Transform::from_translation([r as f32 - 512.0, c as f32 - 512.0, 0.0].into());
 
-                        commands.spawn((
-                            Pixel,
-                            sprite,
-                            transform
-                        ));
+                //         commands.spawn((
+                //             Pixel,
+                //             sprite,
+                //             transform
+                //         ));
 
-                        // println!("val: {:?}", val);
-                    }
-                }
+                //         // println!("val: {:?}", val);
+                //     }
+                // }
                 
 
             },
@@ -124,7 +139,7 @@ fn fractal_event(
 #[derive(Component)]
 struct Fractal
 {
-    fractal: RustFractal::my_grid::MyGreyGrid<u8>,
+    fractal: RustFractal::my_grid::grid_32::MyColorImage,
     params: RustFractal::fractal::FractalizeParameters,
 }
 
@@ -162,7 +177,7 @@ fn window_draw(
     mut commands: Commands,
     mut primary_window: Query<&mut Window>,
     mut cam: Single<&mut Camera2d>
-) -> ()
+)
 {
     let Ok(mut window) = primary_window.single_mut() else { return; };
     let window = &mut *window;
@@ -277,10 +292,11 @@ fn setup(mut commands: Commands)
         ));
     });
 
-    let fractal = RustFractal::my_grid::MyGreyGrid::<u8>::new(1024, 1024);
+    // let fractal = RustFractal::my_grid::MyGreyGrid::<u8>::new(1024, 1024);
+    let fractal = RustFractal::my_grid::grid_32::MyColorImage::new(1024, 1024);
     let params = 
         RustFractal::fractal::FractalizeParameters::default()
-        .with_max_points(50_000_000);
+        .with_max_points(25_000_000);
     commands.spawn(Fractal {
         fractal,
         params,
