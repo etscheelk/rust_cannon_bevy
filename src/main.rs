@@ -32,17 +32,21 @@ fn ui_example_system(
                 println!("Render low!");
                 fractal_ew.write(FractalEvent::RenderLow);
             }
-            ui.label("World!");
-            for name in &query
+            if ui.button("Display").clicked()
             {
-                ui.label(format!("Hello, {}!", name.0));
+                fractal_ew.write(FractalEvent::Display);
             }
+            // ui.label("World!");
+            // for name in &query
+            // {
+            //     ui.label(format!("Hello, {}!", name.0));
+            // }
         }
     );
 }
 
 fn fractal_event(
-    // mut commands: Commands,
+    mut commands: Commands,
     mut events: EventReader<FractalEvent>,
     fractal_query: Single<&mut Fractal>,
 )
@@ -59,45 +63,68 @@ fn fractal_event(
                 println!("Render high!");
             },
             FractalEvent::RenderLow => {
+                println!("Render low!");
                 fractal_query.fractal.fractalize(params.clone());
+                println!("Render low done!")
             },
             FractalEvent::Settings(params) => 
             {
                 println!("Settings: {:?}", params);
                 fractal_query.params = params.clone();
             },
+            FractalEvent::Display =>
+            {
+                println!("Display!");
+
+                let tf = TextureFormat::R8Unorm;
+
+                // let img = Image::new(
+                //     Extent3d {
+                //         depth_or_array_layers: 1,
+                //         height: 1024,
+                //         width: 1024,
+                //     },
+                //     bevy::render::render_resource::TextureDimension::D2,
+                //     fractal_query.fractal.grid.clone(),
+                //     tf,
+                //     RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+                // );
+
+
+                for r in 0..1024
+                {
+                    for c in 0..1024
+                    {
+                        let val = fractal_query.fractal.flat_index(r, c);
+                        #[derive(Component)]
+                        struct Pixel;
+
+                        let color = fractal_query.fractal.grid[val];
+                        let color = Color::Srgba(Srgba::rgb_u8(color, color, color));
+
+                        let sprite = Sprite::from_color(color, [1.0, 1.0].into());
+                        let transform = Transform::from_translation([r as f32 - 512.0, c as f32 - 512.0, 0.0].into());
+
+                        commands.spawn((
+                            Pixel,
+                            sprite,
+                            transform
+                        ));
+
+                        // println!("val: {:?}", val);
+                    }
+                }
+                
+
+            },
         }
     }
-}
-
-fn fractal_render(
-    mut commands: Commands,
-    fractal: Single<&Fractal>,
-)
-{
-    let fractal = fractal.into_inner();
-
-    let tf = TextureFormat::R8Unorm;
-
-    let img = Image::new(
-        Extent3d {
-            depth_or_array_layers: 1,
-            height: 1024,
-            width: 1024,
-        }, 
-        bevy::render::render_resource::TextureDimension::D1, 
-        fractal.fractal.grid.clone(), 
-        tf, 
-        RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD
-    );
-
-    // let sp = Sprite::from_image(img);
 }
 
 #[derive(Component)]
 struct Fractal
 {
-    fractal: RustFractal::my_grid::MyGrid<u8>,
+    fractal: RustFractal::my_grid::MyGreyGrid<u8>,
     params: RustFractal::fractal::FractalizeParameters,
 }
 
@@ -221,6 +248,7 @@ enum FractalEvent
     RenderHigh,
     RenderLow,
     Settings(RustFractal::fractal::FractalizeParameters),
+    Display,
 }
 
 fn setup(mut commands: Commands)
@@ -249,14 +277,16 @@ fn setup(mut commands: Commands)
         ));
     });
 
-    let fractal = RustFractal::my_grid::MyGrid::<u8>::new(1024, 1024);
+    let fractal = RustFractal::my_grid::MyGreyGrid::<u8>::new(1024, 1024);
     let params = 
         RustFractal::fractal::FractalizeParameters::default()
-        .with_max_points(5_000_000);
+        .with_max_points(50_000_000);
     commands.spawn(Fractal {
         fractal,
         params,
     });
+
+    
     // .with_child(LinePath { points: vec![] })
     // .with_child(
     //     CannonAimSpotBundle {
