@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use bevy::{asset::RenderAssetUsages, input::mouse::MouseWheel, prelude::*, render::render_resource::{Extent3d, TextureFormat}, sprite::Anchor, window::WindowResolution};
 use bevy_egui::{egui, EguiContexts, EguiPlugin, EguiContextPass};
 
@@ -20,7 +22,7 @@ fn ui_example_system(
     fractal: Single<&Fractal>,
 )
 {
-    let SettingsMenu {s_theta_offset, s_rot} = settings_menu.into_inner();
+    let SettingsMenu {s_theta_offset, f_theta_offset, s_rot, f_rot} = settings_menu.into_inner();
     // *s_theta_offset = fractal.params.theta_offset.to_string();
     // *s_rot = fractal.params.rot.to_string();
 
@@ -43,26 +45,19 @@ fn ui_example_system(
             {
                 fractal_ew.write(FractalEvent::Display);
             }
+            
             ui.label("theta offset value:");
-            let theta_offset_value_line = ui.text_edit_singleline(s_theta_offset);
-            if theta_offset_value_line.lost_focus()
-            {
-                if let Ok(theta_offset) = s_theta_offset.parse()
-                {
-                    params.theta_offset = theta_offset;
-                }
-            }
-            ui.label("rot value:");
-            let rot_value_line = ui.text_edit_singleline(s_rot);
-            if rot_value_line.lost_focus()
-            {
-                if let Ok(rot) = s_rot.parse()
-                {
-                    params.rot = rot;
-                }
-            }
 
-            if params != fractal.into_inner().params
+            let theta_offset_slider = egui::Slider::new(f_theta_offset, -PI..=PI);
+            ui.add(theta_offset_slider.text("theta_offset slider"));
+
+            let rot_slider = egui::Slider::new(f_rot, -PI..=PI);
+            ui.add(rot_slider.text("Rot slider"));
+
+            params.theta_offset = *f_theta_offset;
+            params.rot = *f_rot;
+
+            if params != fractal.params
             {
                 println!("Fractalize params changed: {:?}", &params);
 
@@ -242,7 +237,9 @@ struct AngularVelocity(f32);
 struct SettingsMenu
 {
     s_theta_offset: String,
+    f_theta_offset: f32,
     s_rot: String,
+    f_rot: f32,
 }
 
 impl Default for CannonBundle
@@ -312,7 +309,12 @@ fn setup(mut commands: Commands)
         params,
     });
 
-    commands.insert_resource(SettingsMenu { s_theta_offset: params.theta_offset.to_string(), s_rot: params.rot.to_string()});
+    commands.insert_resource(SettingsMenu { 
+        s_theta_offset: params.theta_offset.to_string(), 
+        f_theta_offset: params.theta_offset,
+        s_rot: params.rot.to_string(),
+        f_rot: params.rot,
+    });
 
     
     // .with_child(LinePath { points: vec![] })
