@@ -16,16 +16,19 @@ fn ui_example_system(
     mut contexts: EguiContexts, 
     query: Query<&Name, With<Person>>,
     mut fractal_ew: EventWriter<FractalEvent>,
+    settings_menu: ResMut<SettingsMenu>,
+    fractal: Single<&Fractal>,
 )
 {
+    let SettingsMenu {s_theta_offset, s_rot} = settings_menu.into_inner();
+    // *s_theta_offset = fractal.params.theta_offset.to_string();
+    // *s_rot = fractal.params.rot.to_string();
+
     egui::Window::new("Hello").show(
         contexts.ctx_mut(), 
         |ui|
         {
-            let mut s_theta_offset = String::from("");
-            let mut s_rot = String::from("");
-
-            let mut params = FractalizeParameters::default();
+            let mut params = fractal.params.clone();
 
             // ui.checkbox(checked, text)
             if ui.button("button").clicked()
@@ -40,14 +43,18 @@ fn ui_example_system(
             {
                 fractal_ew.write(FractalEvent::Display);
             }
-            if ui.text_edit_singleline(&mut s_theta_offset).lost_focus()
+            ui.label("theta offset value:");
+            let theta_offset_value_line = ui.text_edit_singleline(s_theta_offset);
+            if theta_offset_value_line.lost_focus()
             {
                 if let Ok(theta_offset) = s_theta_offset.parse()
                 {
                     params.theta_offset = theta_offset;
                 }
             }
-            if ui.text_edit_singleline(&mut s_rot).lost_focus()
+            ui.label("rot value:");
+            let rot_value_line = ui.text_edit_singleline(s_rot);
+            if rot_value_line.lost_focus()
             {
                 if let Ok(rot) = s_rot.parse()
                 {
@@ -55,8 +62,10 @@ fn ui_example_system(
                 }
             }
 
-            if params != FractalizeParameters::default()
+            if params != fractal.into_inner().params
             {
+                println!("Fractalize params changed: {:?}", &params);
+
                 fractal_ew.write(FractalEvent::Settings(params));
             }
             // ui.label("World!");
@@ -229,6 +238,13 @@ struct Power(f32);
 #[derive(Component)]
 struct AngularVelocity(f32);
 
+#[derive(Resource)]
+struct SettingsMenu
+{
+    s_theta_offset: String,
+    s_rot: String,
+}
+
 impl Default for CannonBundle
 {
     fn default() -> Self
@@ -295,6 +311,8 @@ fn setup(mut commands: Commands)
         fractal,
         params,
     });
+
+    commands.insert_resource(SettingsMenu { s_theta_offset: params.theta_offset.to_string(), s_rot: params.rot.to_string()});
 
     
     // .with_child(LinePath { points: vec![] })
