@@ -31,7 +31,7 @@ fn fractal_setup(
     mut commands: Commands,
 )
 {
-    let fractal = MyColorImage::new(1024, 1024);
+    let fractal = MyColorImage::new(4096, 4096);
     let params = 
         FractalizeParameters::default()
         .with_max_points(25_000_000);
@@ -141,7 +141,8 @@ fn fractal_event(
             {
                 println!("Render high!");
             },
-            FractalEvent::RenderLow => {
+            FractalEvent::RenderLow => 
+            {
                 fractal_query.fractal.pixels_mut().for_each(|p| { p[0] = 0; p[1] = 0; p[2] = 0; p[3] = 0; });
                 let compute_fractal = Fractal::compute_fractalize_async(fractal_query, thread_pool);
                 commands.spawn(compute_fractal);
@@ -165,8 +166,8 @@ fn fractal_event(
                 let img = Image::new(
                     Extent3d {
                         depth_or_array_layers: 1,
-                        height: 1024,
-                        width: 1024,
+                        height: 4096,
+                        width: 4096,
                     },
                     bevy::render::render_resource::TextureDimension::D2,
                     fractal_query.fractal.clone().into_vec(),
@@ -178,7 +179,8 @@ fn fractal_event(
 
                 let mut sprite = Sprite::from_image(h);
                 sprite.anchor = Anchor::Center;
-                let transform = Transform::from_translation([0.0, 0.0, -1.0].into());
+                let mut transform = Transform::from_translation([0.0, 0.0, -1.0].into());
+                transform.scale = [0.25, 0.25, 1.0].into();
 
                 if let Some(spr) = fractal_sprite.take()
                 {
@@ -214,11 +216,11 @@ fn fractal_gui(
             let mut params = fractal.params.clone();
 
             // ui.checkbox(checked, text)
-            if ui.button("button").clicked()
-            {
-                println!("Button clicked!");
-            }
-            if ui.button("Render Low").clicked()
+            // if ui.button("button").clicked()
+            // {
+            //     println!("Button clicked!");
+            // }
+            if ui.button("Render").clicked()
             {
                 fractal_ew.write(FractalEvent::RenderLow);
             }

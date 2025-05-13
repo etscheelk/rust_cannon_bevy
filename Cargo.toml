@@ -17,3 +17,6 @@ opt-level = 3
 [profile.release]
 codegen-units = 1
 lto = "thin"
+
+[target.wasm32-unknown-unknown]
+runner = "wasm-server-runner"
