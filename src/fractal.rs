@@ -50,8 +50,7 @@ fn fractal_setup(
 #[derive(Event)]
 enum FractalEvent
 {
-    RenderHigh,
-    RenderLow,
+    Render,
     Settings(RustFractal::fractal::FractalizeParameters),
     Display,
 }
@@ -137,11 +136,7 @@ fn fractal_event(
     {
         match event
         {
-            FractalEvent::RenderHigh => 
-            {
-                println!("Render high!");
-            },
-            FractalEvent::RenderLow => 
+            FractalEvent::Render => 
             {
                 fractal_query.fractal.pixels_mut().for_each(|p| { p[0] = 0; p[1] = 0; p[2] = 0; p[3] = 0; });
                 let compute_fractal = Fractal::compute_fractalize_async(fractal_query, thread_pool);
@@ -180,7 +175,7 @@ fn fractal_event(
                 let mut sprite = Sprite::from_image(h);
                 sprite.anchor = Anchor::Center;
                 let mut transform = Transform::from_translation([0.0, 0.0, -1.0].into());
-                transform.scale = [0.25, 0.25, 1.0].into();
+                transform.scale = [1.0, 1.0, 1.0].into();
 
                 if let Some(spr) = fractal_sprite.take()
                 {
@@ -222,7 +217,7 @@ fn fractal_gui(
             // }
             if ui.button("Render").clicked()
             {
-                fractal_ew.write(FractalEvent::RenderLow);
+                fractal_ew.write(FractalEvent::Render);
             }
             if ui.button("Display").clicked()
             {

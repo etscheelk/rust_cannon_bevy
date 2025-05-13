@@ -1,7 +1,10 @@
+use bevy::input::mouse::{MouseMotion, MouseWheel};
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
 
 use bevy_egui::EguiPlugin;
+
+use std::ops::RangeInclusive;
 
 mod fractal;
 mod cannon;
@@ -64,6 +67,12 @@ struct Player;
 #[derive(Component)]
 struct MyMainCamera;
 
+#[derive(Component, Deref, Debug, Clone, Copy)]
+struct Zoom(f32);
+
+#[derive(Component, Deref, Debug, Clone)]
+struct AllowedZooms(RangeInclusive<f32>);
+
 #[derive(Component)]
 struct ReceivesInput
 {
@@ -72,7 +81,7 @@ struct ReceivesInput
 
 fn setup(mut commands: Commands)
 {
-    commands.spawn((MyMainCamera, Camera2d::default(), Transform::default(), ReceivesInput {active: true} ));
+    commands.spawn((MyMainCamera, Camera2d::default(), Transform::default(), ReceivesInput {active: true}, Zoom(1.0), AllowedZooms(0.25..=2.0)));
     commands.spawn((Player, Sprite::default(), Transform::default(), ReceivesInput {active: true} ));
     
     let pos2 = Transform::from_translation([5.0, 5.0, 0.0].into());
@@ -126,44 +135,62 @@ struct MiddlePoint;
 
 
 fn camera_movement(
-    mut query: Query<(&mut Transform, &ReceivesInput), With<MyMainCamera>>,
+    query: Query<(&mut Transform, &ReceivesInput, &mut Zoom, &AllowedZooms), With<MyMainCamera>>,
     keys: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    mut mouse_movement: EventReader<MouseMotion>,
+    mut scroll_wheel: EventReader<MouseWheel>,
 )
 {
-    let transform_query = 
-    query.iter_mut()
-    .filter_map(
-    |(t, ri)|
+    let mut delta_movement = Vec2::ZERO;
+    if mouse.pressed(MouseButton::Left)
+    {
+        for ev in mouse_movement.read()
+        {  
+            delta_movement += ev.delta;
+        }
+    }
+
+    let mut delta_zoom = 0.0;
+    for scroll in scroll_wheel.read()
+    {
+        delta_zoom += 0.1 * scroll.y;
+    }
+
+    for (mut transform, ri, mut zoom, azs) in query
     {
         if ri.active
         {
-            Some(t)
-        }
-        else
-        {
-            None
-        }
-    });
-
-    for mut transform in transform_query
-    {
-        if keys.pressed(KeyCode::ArrowUp)
-        {
-            transform.translation.y += 5.0;
-        }
-        if keys.pressed(KeyCode::ArrowDown)
-        {
-            transform.translation.y -= 5.0;
-        }
-        if keys.pressed(KeyCode::ArrowLeft)
-        {
-            transform.translation.x -= 5.0;
-        }
-        if keys.pressed(KeyCode::ArrowRight)
-        {
-            transform.translation.x += 5.0;
+            zoom.0 += delta_zoom;
+            zoom.0 = zoom.0.clamp(*azs.start(), *azs.end());
+            
+            transform.scale = Vec3::ONE / zoom.0;
+            
+            transform.translation += Vec3::from([-delta_movement.x / zoom.0, delta_movement.y / zoom.0, 0.0]);
         }
     }
+
+    // for mut transform in transform_query
+    // {
+    //     if keys.pressed(KeyCode::ArrowUp)
+    //     {
+    //         transform.translation.y += 5.0;
+    //     }
+    //     if keys.pressed(KeyCode::ArrowDown)
+    //     {
+    //         transform.translation.y -= 5.0;
+    //     }
+    //     if keys.pressed(KeyCode::ArrowLeft)
+    //     {
+    //         transform.translation.x -= 5.0;
+    //     }
+    //     if keys.pressed(KeyCode::ArrowRight)
+    //     {
+    //         transform.translation.x += 5.0;
+    //     }
+    // }
+
+
 }
 
 
