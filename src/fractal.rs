@@ -41,6 +41,7 @@ fn fractal_setup(
         params,
     });
     commands.insert_resource(FractalSettingsMenu {
+        fractal_method: FractalMethod::default(),
         f_theta_offset: params.theta_offset,
         f_rot: params.rot,
         u_num_points: params.max_points,
@@ -58,10 +59,14 @@ enum FractalEvent
 #[derive(Resource)]
 struct FractalSettingsMenu
 {
+    fractal_method: FractalMethod,
     f_theta_offset: f32,
     f_rot: f32,
     u_num_points: u32,
 }
+
+#[derive(Deref, Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct FractalMethod(RustFractal::fractal::FractalMethod);
 
 #[derive(Component)]
 struct FractalSprite;
@@ -200,9 +205,10 @@ fn fractal_gui(
     mut fractal_ew: EventWriter<FractalEvent>,
     settings_menu: ResMut<FractalSettingsMenu>,
     fractal: Res<Fractal>,
+    rendering_fracs: Query<&ComputeFractal>,
 )
 {
-    let FractalSettingsMenu {f_theta_offset, f_rot, u_num_points} = settings_menu.into_inner();
+    let FractalSettingsMenu {fractal_method, f_theta_offset, f_rot, u_num_points} = settings_menu.into_inner();
 
     egui::Window::new("Hello").show(
         contexts.ctx_mut(), 
@@ -215,16 +221,40 @@ fn fractal_gui(
             // {
             //     println!("Button clicked!");
             // }
-            if ui.button("Render").clicked()
+
+            ui.columns(2, 
+            |columns|
             {
-                fractal_ew.write(FractalEvent::Render);
-            }
+                if columns[0].button("Render").clicked()
+                {
+                    fractal_ew.write(FractalEvent::Render);
+                }
+                columns[0].shrink_width_to_current();
+
+                if rendering_fracs.iter().len() > 0
+                {
+                    columns[1].spinner();
+                }
+            });
+
+            // if ui.button("Render").clicked()
+            // {
+            //     fractal_ew.write(FractalEvent::Render);
+            // }
+            // if rendering_fracs.iter().len() > 0
+            // {
+            //     ui.spinner();
+            // }
+
             if ui.button("Display").clicked()
             {
                 fractal_ew.write(FractalEvent::Display);
             }
             
             // ui.label("theta offset value:");
+
+            ui.radio_value(fractal_method, FractalMethod(RustFractal::fractal::FractalMethod::Default), "Default");
+            ui.radio_value(fractal_method, FractalMethod(RustFractal::fractal::FractalMethod::MultiplyTheta), "Multiply Theta");
 
             let num_points_slider = egui::Slider::new(u_num_points, 1_000_000..=500_000_000).logarithmic(true);
             ui.add(num_points_slider.text("Number of points"));
@@ -238,6 +268,7 @@ fn fractal_gui(
             params.theta_offset = *f_theta_offset;
             params.rot = *f_rot;
             params.max_points = *u_num_points;
+            params.method = fractal_method.0;
 
             if params != fractal.params
             {
