@@ -1,6 +1,11 @@
 use std::f32::consts::PI;
 
-use bevy::{asset::RenderAssetUsages, prelude::*, render::render_resource::{Extent3d, TextureFormat}, sprite::Anchor, tasks::{block_on, AsyncComputeTaskPool, Task}};
+use bevy::prelude::*;
+use bevy::tasks::{block_on, poll_once, AsyncComputeTaskPool, Task};
+use bevy::sprite::Anchor;
+use bevy::render::render_resource::{Extent3d, TextureFormat};
+use bevy::asset::RenderAssetUsages;
+
 use bevy_egui::{EguiContextPass, EguiContexts};
 use bevy_egui::egui;
 
@@ -71,6 +76,8 @@ struct Fractal
 
 impl Fractal
 {
+    /// An async implementation of the fractalize function.
+    /// It can take a long time so it's good to make sure the rest of the app is running.
     fn compute_fractalize_async(&self, thread_pool: &AsyncComputeTaskPool) -> ComputeFractal
     {
         let mut frac = self.clone();
@@ -86,6 +93,7 @@ impl Fractal
     }
 }
 
+/// A 
 #[derive(Component)]
 struct ComputeFractal
 {
@@ -101,7 +109,7 @@ fn handle_compute_fractal(
 {
     for (ent, mut task) in compute_fractal
     {
-        if let Some(a) = block_on(bevy::tasks::futures_lite::future::poll_once(&mut task.task))
+        if let Some(a) = block_on(poll_once(&mut task.task))
         {
             let b = fractal.as_mut();
             *b = a;
@@ -174,7 +182,6 @@ fn fractal_event(
 
                 if let Some(spr) = fractal_sprite.take()
                 {
-                    // spr = sprite;
                     let spr = spr.into_inner().into_inner();
                     *spr = sprite;
                 }

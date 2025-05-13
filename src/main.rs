@@ -1,5 +1,8 @@
-use bevy::{asset::RenderAssetUsages, input::mouse::MouseWheel, prelude::*, render::render_resource::{Extent3d, TextureFormat}, sprite::Anchor, tasks::{block_on, AsyncComputeTaskPool, Task}, window::WindowResolution};
-use bevy_egui::{egui, EguiContexts, EguiPlugin, EguiContextPass};
+use bevy::prelude::*;
+use bevy::window::WindowResolution;
+use bevy::input::mouse::MouseWheel;
+
+use bevy_egui::EguiPlugin;
 
 mod fractal;
 
