@@ -1,9 +1,9 @@
 use std::f32::consts::PI;
 
-use bevy::{asset::RenderAssetUsages, input::mouse::MouseWheel, prelude::*, render::render_resource::{Extent3d, TextureFormat}, sprite::Anchor, window::WindowResolution};
+use bevy::{asset::RenderAssetUsages, input::mouse::MouseWheel, prelude::*, render::render_resource::{Extent3d, TextureFormat}, sprite::Anchor, tasks::{block_on, AsyncComputeTaskPool, Task}, window::WindowResolution};
 use bevy_egui::{egui, EguiContexts, EguiPlugin, EguiContextPass};
 
-use RustFractal::fractal::{self, Fractalize, FractalizeParameters};
+use RustFractal::fractal::Fractalize;
 
 // use bevy::bevy_window::PrimaryWindow;
 
@@ -15,16 +15,13 @@ fn main() {
 }
 
 fn ui_example_system(
-    mut contexts: EguiContexts, 
-    query: Query<&Name, With<Person>>,
+    mut contexts: EguiContexts,
     mut fractal_ew: EventWriter<FractalEvent>,
     settings_menu: ResMut<SettingsMenu>,
-    fractal: Single<&Fractal>,
+    fractal: Res<Fractal>,
 )
 {
-    let SettingsMenu {s_theta_offset, f_theta_offset, s_rot, f_rot} = settings_menu.into_inner();
-    // *s_theta_offset = fractal.params.theta_offset.to_string();
-    // *s_rot = fractal.params.rot.to_string();
+    let SettingsMenu {f_theta_offset, f_rot, u_num_points} = settings_menu.into_inner();
 
     egui::Window::new("Hello").show(
         contexts.ctx_mut(), 
@@ -48,6 +45,9 @@ fn ui_example_system(
             
             ui.label("theta offset value:");
 
+            let num_points_slider = egui::Slider::new(u_num_points, 1_000_000..=500_000_000).logarithmic(true);
+            ui.add(num_points_slider.text("Number of points"));
+
             let theta_offset_slider = egui::Slider::new(f_theta_offset, -PI..=PI);
             ui.add(theta_offset_slider.text("theta_offset slider"));
 
@@ -56,6 +56,7 @@ fn ui_example_system(
 
             params.theta_offset = *f_theta_offset;
             params.rot = *f_rot;
+            params.max_points = *u_num_points;
 
             if params != fractal.params
             {
@@ -63,11 +64,6 @@ fn ui_example_system(
 
                 fractal_ew.write(FractalEvent::Settings(params));
             }
-            // ui.label("World!");
-            // for name in &query
-            // {
-            //     ui.label(format!("Hello, {}!", name.0));
-            // }
         }
     );
 }
@@ -75,10 +71,13 @@ fn ui_example_system(
 fn fractal_event(
     mut commands: Commands,
     mut events: EventReader<FractalEvent>,
-    fractal_query: Single<&mut Fractal>,
+    fractal_query: ResMut<Fractal>,
     asset_server: Res<AssetServer>,
 )
 {
+    let thread_pool = AsyncComputeTaskPool::get();
+
+
     let mut fractal_query = fractal_query.into_inner();
     let params = fractal_query.params.clone();
 
@@ -92,8 +91,19 @@ fn fractal_event(
             },
             FractalEvent::RenderLow => {
                 println!("Render low!");
-                fractal_query.fractal.fractalize(params.clone());
-                fractal_query.fractal.pixels_mut().for_each(|p| p[3] = 0xff);
+
+                // let task = thread_pool.spawn(
+                //     async move {
+                //         fractal_query.fractal.fractalize(params.clone());
+                //         // fractal_query.fractal.pixels_mut().for_each(|p| p[3] = 0xff);
+                //     }
+                // );
+                let compute_fractal = Fractal::compute_fractalize_async(fractal_query, thread_pool);
+                commands.spawn(compute_fractal);
+
+
+                // fractal_query.fractal.fractalize(params.clone());
+                // fractal_query.fractal.pixels_mut().for_each(|p| p[3] = 0xff);
                 println!("Render low done!")
             },
             FractalEvent::Settings(params) => 
@@ -134,11 +144,53 @@ fn fractal_event(
     }
 }
 
-#[derive(Component)]
+// #[derive(Component)]
+#[derive(Resource, Clone)]
 struct Fractal
 {
     fractal: RustFractal::my_grid::grid_32::MyColorImage,
     params: RustFractal::fractal::FractalizeParameters,
+}
+
+impl Fractal
+{
+    fn compute_fractalize_async(&self, thread_pool: &AsyncComputeTaskPool) -> ComputeFractal
+    {
+        let mut frac = self.clone();
+
+        let task = thread_pool.spawn(async move {
+            frac.fractal.fractalize(frac.params);
+            frac.fractal.pixels_mut().for_each(|p| p[3] = 0xff);
+
+            frac
+        });
+        
+        ComputeFractal { task }
+    }
+}
+
+#[derive(Component)]
+struct ComputeFractal
+{
+    task: Task<Fractal>
+}
+
+fn handle_compute_fractal(
+    mut commands: Commands,
+    compute_fractal: Query<(Entity, &mut ComputeFractal)>,
+    mut fractal: ResMut<Fractal>,
+)
+{
+    for (ent, mut task) in compute_fractal
+    {
+        if let Some(a) = block_on(bevy::tasks::futures_lite::future::poll_once(&mut task.task))
+        {
+            let b = fractal.as_mut();
+            *b = a;
+
+            commands.get_entity(ent).unwrap().despawn();
+        }
+    }
 }
 
 #[derive(Component)]
@@ -167,7 +219,7 @@ impl Plugin for HelloPlugin
         app.add_systems(Update, (update_people, greet_people).chain());
         app.add_systems(Update, (window_draw, player_movement, camera_movement, (cannon_change_power, cannon_action, apply_angular_vel, calculate_cannon_arc, draw_cannon_arc).chain()));
         app.add_event::<FractalEvent>();
-        app.add_systems(Update, (fractal_event,));
+        app.add_systems(Update, (fractal_event, handle_compute_fractal));
     }
 }
 
@@ -236,10 +288,9 @@ struct AngularVelocity(f32);
 #[derive(Resource)]
 struct SettingsMenu
 {
-    s_theta_offset: String,
     f_theta_offset: f32,
-    s_rot: String,
     f_rot: f32,
+    u_num_points: u32,
 }
 
 impl Default for CannonBundle
@@ -304,16 +355,19 @@ fn setup(mut commands: Commands)
     let params = 
         RustFractal::fractal::FractalizeParameters::default()
         .with_max_points(25_000_000);
-    commands.spawn(Fractal {
+    // commands.spawn(Fractal {
+    //     fractal,
+    //     params,
+    // });
+    commands.insert_resource(Fractal {
         fractal,
         params,
     });
 
     commands.insert_resource(SettingsMenu { 
-        s_theta_offset: params.theta_offset.to_string(), 
         f_theta_offset: params.theta_offset,
-        s_rot: params.rot.to_string(),
         f_rot: params.rot,
+        u_num_points: params.max_points
     });
 
     
