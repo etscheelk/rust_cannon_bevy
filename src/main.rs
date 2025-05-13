@@ -43,7 +43,7 @@ fn ui_example_system(
                 fractal_ew.write(FractalEvent::Display);
             }
             
-            ui.label("theta offset value:");
+            // ui.label("theta offset value:");
 
             let num_points_slider = egui::Slider::new(u_num_points, 1_000_000..=500_000_000).logarithmic(true);
             ui.add(num_points_slider.text("Number of points"));
@@ -73,13 +73,11 @@ fn fractal_event(
     mut events: EventReader<FractalEvent>,
     fractal_query: ResMut<Fractal>,
     asset_server: Res<AssetServer>,
+    mut fractal_sprite: Option<Single<&mut Sprite, With<FractalSprite>>>,
 )
 {
     let thread_pool = AsyncComputeTaskPool::get();
-
-
-    let mut fractal_query = fractal_query.into_inner();
-    let params = fractal_query.params.clone();
+    let fractal_query = fractal_query.into_inner();
 
     for event in events.read()
     {
@@ -90,21 +88,14 @@ fn fractal_event(
                 println!("Render high!");
             },
             FractalEvent::RenderLow => {
-                println!("Render low!");
-
-                // let task = thread_pool.spawn(
-                //     async move {
-                //         fractal_query.fractal.fractalize(params.clone());
-                //         // fractal_query.fractal.pixels_mut().for_each(|p| p[3] = 0xff);
-                //     }
-                // );
+                fractal_query.fractal.pixels_mut().for_each(|p| { p[0] = 0; p[1] = 0; p[2] = 0; p[3] = 0; });
                 let compute_fractal = Fractal::compute_fractalize_async(fractal_query, thread_pool);
                 commands.spawn(compute_fractal);
-
+                println!("Fractal rendering task created!");
 
                 // fractal_query.fractal.fractalize(params.clone());
                 // fractal_query.fractal.pixels_mut().for_each(|p| p[3] = 0xff);
-                println!("Render low done!")
+                // println!("Render low done!")
             },
             FractalEvent::Settings(params) => 
             {
@@ -135,10 +126,20 @@ fn fractal_event(
                 sprite.anchor = Anchor::Center;
                 let transform = Transform::from_translation([0.0, 0.0, -1.0].into());
 
-                commands.spawn((
-                    sprite,
-                    transform,
-                ));
+                if let Some(spr) = fractal_sprite.take()
+                {
+                    // spr = sprite;
+                    let spr = spr.into_inner().into_inner();
+                    *spr = sprite;
+                }
+                else
+                {
+                    commands.spawn((
+                        FractalSprite,
+                        sprite,
+                        transform,
+                    ));
+                }
             },
         }
     }
@@ -179,6 +180,7 @@ fn handle_compute_fractal(
     mut commands: Commands,
     compute_fractal: Query<(Entity, &mut ComputeFractal)>,
     mut fractal: ResMut<Fractal>,
+    mut fractal_ew: EventWriter<FractalEvent>,
 )
 {
     for (ent, mut task) in compute_fractal
@@ -189,9 +191,15 @@ fn handle_compute_fractal(
             *b = a;
 
             commands.get_entity(ent).unwrap().despawn();
+            fractal_ew.write(FractalEvent::Display);
+
+            println!("Fractal rendering complete!!");
         }
     }
 }
+
+#[derive(Component)]
+struct FractalSprite;
 
 #[derive(Component)]
 struct CannonAimSpot;
