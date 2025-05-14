@@ -25,7 +25,11 @@ Rendering takes place asynchronously so the game loop continues. A spinner is di
 
 The `Save Image` button will simply save a 4096x4096 `png` to crate root titled `my_image.png`. Image naming will be available at a later time. I also plan to add image editing functions: things like levels and curves, which are the main artistic processing I did on the B&W sources.
 
-Examples:
+## Use
+
+Use mouse to click and drag. Scrollwheel for zooming in or out. 
+
+## Examples:
 
 ![](image_examples/a-inverted.png)
 

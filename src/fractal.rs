@@ -113,6 +113,7 @@ fn handle_compute_fractal(
 {
     for (ent, mut task) in compute_fractal
     {
+        // if let Some(a) = block_on(poll_once(&mut task.task))
         if let Some(a) = block_on(poll_once(&mut task.task))
         {
             let b = fractal.as_mut();
@@ -281,6 +282,8 @@ fn fractal_gui(
             {
                 let _ = fractal.fractal.save("my_image.png");
             }
+
+            
         }
     );
 }

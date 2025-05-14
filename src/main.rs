@@ -86,37 +86,7 @@ fn setup(mut commands: Commands)
     
     let pos2 = Transform::from_translation([5.0, 5.0, 0.0].into());
     commands.spawn((Sprite::default(), pos2, Player, ReceivesInput {active: false}));
-    // commands.insert_resource(CannonPoller(Timer::from_seconds(1.0, TimerMode::Repeating)));
-    // commands.spawn(CannonBundle::default())
-    // .with_children(|cannon|
-    // {
-    //     cannon.spawn(
-    //         CannonAimSpotBundle {
-    //             cannon_aim_spot: CannonAimSpot,
-    //             sprite: Sprite::sized([3.0, 3.0].into()),
-    //             transform: Transform::from_translation([0.0, 0.0, 0.0].into()),
-    //         },
-    //         // (LinePath { points: vec![] }, Transform::default()),
-    //     );
-    //     cannon.spawn((
-    //         LinePath { points: vec![] },
-    //         Transform::default(),
-    //         InheritedVisibility::default()
-    //     ));
-    // });
-
-    
-    // .with_child(LinePath { points: vec![] })
-    // .with_child(
-    //     CannonAimSpotBundle {
-    //         cannon_aim_spot: CannonAimSpot,
-    //         sprite: Sprite::sized([3.0, 3.0].into()),
-    //         transform: Transform::from_translation([0.0, 0.0, 0.0].into()),
-    //     }
-    // );
 }
-
-
 
 #[derive(Bundle)]
 struct LineSegmentBundle
