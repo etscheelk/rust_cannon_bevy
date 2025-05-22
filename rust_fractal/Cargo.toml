@@ -1,0 +1,11 @@
+[package]
+name = "rust_fractal"
+version = "0.1.0"
+edition = "2021"
+authors = ["Ethan Scheelk"]
+
+[dependencies]
+derive-getters = { version = "0.5.0", features = ["auto_copy_getters"] }
+derive_setters = "0.1.7"
+image = "0.25.2"
+rand = { version = "0.9.1" }

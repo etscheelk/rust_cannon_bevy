@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 bevy = { version = "0.16.0", features = ["dynamic_linking"] }
 bevy_egui = "0.34.1"
-RustFractal = { path = "../../RustFractal" }
+rust_fractal = { path = "./rust_fractal" }
 
 [profile.dev]
 opt-level = 1

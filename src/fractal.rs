@@ -9,8 +9,7 @@ use bevy::asset::RenderAssetUsages;
 use bevy_egui::{EguiContextPass, EguiContexts};
 use bevy_egui::egui;
 
-use RustFractal::my_grid::grid_32::MyColorImage;
-use RustFractal::fractal::{Fractalize, FractalizeParameters};
+use rust_fractal::{Fractalize, FractalizeParameters, FractalMethod, MyColorImage};
 
 pub struct FractalPlugin;
 
@@ -52,7 +51,7 @@ fn fractal_setup(
 enum FractalEvent
 {
     Render,
-    Settings(RustFractal::fractal::FractalizeParameters),
+    Settings(FractalizeParameters),
     Display,
 }
 
@@ -64,9 +63,6 @@ struct FractalSettingsMenu
     f_rot: f32,
     u_num_points: u32,
 }
-
-#[derive(Deref, Debug, Clone, Copy, Default, PartialEq, Eq)]
-struct FractalMethod(RustFractal::fractal::FractalMethod);
 
 #[derive(Component)]
 struct FractalSprite;
@@ -217,12 +213,6 @@ fn fractal_gui(
         {
             let mut params = fractal.params.clone();
 
-            // ui.checkbox(checked, text)
-            // if ui.button("button").clicked()
-            // {
-            //     println!("Button clicked!");
-            // }
-
             ui.columns(2, 
             |columns|
             {
@@ -238,24 +228,13 @@ fn fractal_gui(
                 }
             });
 
-            // if ui.button("Render").clicked()
-            // {
-            //     fractal_ew.write(FractalEvent::Render);
-            // }
-            // if rendering_fracs.iter().len() > 0
-            // {
-            //     ui.spinner();
-            // }
-
             if ui.button("Display").clicked()
             {
                 fractal_ew.write(FractalEvent::Display);
             }
-            
-            // ui.label("theta offset value:");
 
-            ui.radio_value(fractal_method, FractalMethod(RustFractal::fractal::FractalMethod::Default), "Default");
-            ui.radio_value(fractal_method, FractalMethod(RustFractal::fractal::FractalMethod::MultiplyTheta), "Multiply Theta");
+            ui.radio_value(fractal_method, FractalMethod::Default, "Default");
+            ui.radio_value(fractal_method, FractalMethod::MultiplyTheta, "Multiply Theta");
 
             let num_points_slider = egui::Slider::new(u_num_points, 1_000_000..=500_000_000).logarithmic(true);
             ui.add(num_points_slider.text("Number of points"));
@@ -269,7 +248,7 @@ fn fractal_gui(
             params.theta_offset = *f_theta_offset;
             params.rot = *f_rot;
             params.max_points = *u_num_points;
-            params.method = fractal_method.0;
+            params.method = *fractal_method;
 
             if params != fractal.params
             {
